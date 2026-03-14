@@ -7,6 +7,7 @@
   vars_files:
     - vars/main.yml
     - vars/secrets.yml
+    - vars/users.yml
 
   tasks:
 

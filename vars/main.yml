@@ -33,7 +33,6 @@ manual_cert_dir: "/etc/ssl/certs/coturn"
 
 # ---- TURN settings ----
 realm: "{{ domain }}"
-turn_user: "freepbx"
 # password — long-term credentials (lt-cred-mech), рекомендуется для продакшена
 # noauth   — открытый релей без пароля, только для тестов в изолированной сети
 auth_mode: "noauth"

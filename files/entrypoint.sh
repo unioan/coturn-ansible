@@ -35,13 +35,16 @@ sed \
 # (sed instead of awk: busybox awk in Alpine has issues with multiline -v values)
 case "${AUTH_MODE}" in
     password)
-        if [ -z "${TURN_USER}" ] || [ -z "${TURN_PASSWORD}" ]; then
-            echo "[entrypoint] ERROR: TURN_USER and TURN_PASSWORD required for password mode" >&2
+        if [ -z "${TURN_USERS}" ]; then
+            echo "[entrypoint] ERROR: TURN_USERS required for password mode" >&2
             exit 1
         fi
-        # Write auth block to temp file to avoid multiline quoting issues
-        printf 'lt-cred-mech\nuser=%s:%s' "${TURN_USER}" "${TURN_PASSWORD}" > /tmp/auth_block.txt
-        echo "[entrypoint] AUTH_MODE=password (lt-cred-mech)"
+        printf 'lt-cred-mech\n' > /tmp/auth_block.txt
+        echo "${TURN_USERS}" | tr ',' '\n' | while IFS=: read -r user pass; do
+            printf 'user=%s:%s\n' "${user}" "${pass}" >> /tmp/auth_block.txt
+        done
+        usernames=$(echo "${TURN_USERS}" | tr ',' '\n' | cut -d: -f1 | tr '\n' ' ')
+        echo "[entrypoint] AUTH_MODE=password (lt-cred-mech), users: ${usernames}"
         ;;
     noauth)
         printf 'no-auth' > /tmp/auth_block.txt
