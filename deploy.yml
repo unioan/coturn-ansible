@@ -174,7 +174,7 @@
         - { port: "5349",                           proto: "tcp" }
         - { port: "5349",                           proto: "udp" }
         - { port: "{{ min_port }}:{{ max_port }}",  proto: "udp" }
-      when: "'active' in ufw_status.stdout"
+      when: "ufw_status.stdout is search('Status: active$')"
 
     # ------------------------------------------------------------------ #
     # 5. Start coturn
@@ -199,8 +199,8 @@
         minute: "0"
         hour: "4"
         job: >
-          certbot renew --quiet &&
-          docker compose -f {{ coturn_dir }}/docker-compose.yml restart coturn
+          certbot renew --quiet
+          --deploy-hook "/usr/bin/docker compose -f {{ coturn_dir }}/docker-compose.yml restart coturn"
       when: cert_source == "certbot"
 
     # ------------------------------------------------------------------ #

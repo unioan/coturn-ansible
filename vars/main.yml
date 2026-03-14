@@ -38,9 +38,32 @@ turn_user: "freepbx"
 # noauth   — открытый релей без пароля, только для тестов в изолированной сети
 auth_mode: "noauth"
 
-# Relay port range — 300 ports ≈ 150 concurrent calls
+# Relay port range — each port = 1 concurrent TURN allocation (1 call)
 min_port: 49152
 max_port: 49452
+
+# TURN session quotas
+# total_quota — max simultaneous allocations across all users (must be <= port range size)
+# user_quota  — max simultaneous allocations per user
+total_quota: 100
+user_quota: 20
+
+# Max bandwidth per TURN allocation (bits per second)
+# 0         — no limit
+# 1048576   — 1 Mbit/s per session
+# 2097152   — 2 Mbit/s per session
+max_bps: 0
+
+# Mobility support for clients that change IP mid-call (e.g. WiFi → 4G)
+# true  — allow IP change without dropping the call (RFC 8016)
+# false — disable, slightly reduces attack surface
+mobility: false
+
+# ---- Logging ----
+# Options: normal, verbose, Verbose
+log_level: "verbose"
+# Enable Docker json-file log rotation (max-size: 10m, max-file: 3)
+log_rotation: true
 
 # ---- Deployment ----
 coturn_dir: "/opt/coturn"

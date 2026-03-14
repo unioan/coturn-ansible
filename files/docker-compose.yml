@@ -29,6 +29,18 @@ services:
       REALM:          "${REALM}"
       MIN_PORT:       "${MIN_PORT}"
       MAX_PORT:       "${MAX_PORT}"
+      TOTAL_QUOTA:    "${TOTAL_QUOTA}"
+      USER_QUOTA:     "${USER_QUOTA}"
+      MAX_BPS:        "${MAX_BPS}"
+      MOBILITY:       "${MOBILITY}"
+      LOG_LEVEL:      "${LOG_LEVEL}"
+      CLI_PASSWORD:   "${CLI_PASSWORD}"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
     volumes:
       - ./entrypoint.sh:/entrypoint.sh:ro

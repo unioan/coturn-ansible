@@ -14,6 +14,7 @@ for var in EXTERNAL_IP RELAY_IP LISTENING_IP CERT_DIR REALM MIN_PORT MAX_PORT; d
 done
 
 AUTH_MODE="${AUTH_MODE:-password}"
+LOG_LEVEL="${LOG_LEVEL:-normal}"
 
 # Step 1: substitute ${VAR} placeholders using sed (envsubst not available in this image)
 sed \
@@ -24,6 +25,10 @@ sed \
     -e "s|\${REALM}|${REALM}|g" \
     -e "s|\${MIN_PORT}|${MIN_PORT}|g" \
     -e "s|\${MAX_PORT}|${MAX_PORT}|g" \
+    -e "s|\${CLI_PASSWORD}|${CLI_PASSWORD}|g" \
+    -e "s|\${TOTAL_QUOTA}|${TOTAL_QUOTA}|g" \
+    -e "s|\${USER_QUOTA}|${USER_QUOTA}|g" \
+    -e "s|\${MAX_BPS}|${MAX_BPS}|g" \
     "${TEMPLATE}" > "${CONF}"
 
 # Step 2: build auth block and substitute ##AUTH_BLOCK## sentinel via sed
@@ -53,7 +58,46 @@ esac
 sed -e '/^##AUTH_BLOCK##$/{' -e 'r /tmp/auth_block.txt' -e 'd' -e '}' \
     "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
 
-# Step 3: verify certificate files exist
+# Step 3: build log level block and substitute ##LOG_LEVEL_BLOCK## sentinel
+case "${LOG_LEVEL}" in
+    normal)
+        : > /tmp/log_level_block.txt
+        ;;
+    verbose)
+        printf 'verbose' > /tmp/log_level_block.txt
+        ;;
+    Verbose)
+        printf 'verbose\nVerbose' > /tmp/log_level_block.txt
+        ;;
+    *)
+        echo "[entrypoint] ERROR: Unknown LOG_LEVEL='${LOG_LEVEL}'. Valid values: normal, verbose, Verbose" >&2
+        exit 1
+        ;;
+esac
+
+sed -e '/^##LOG_LEVEL_BLOCK##$/{' -e 'r /tmp/log_level_block.txt' -e 'd' -e '}' \
+    "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
+
+# Step 4: build mobility block and substitute ##MOBILITY_BLOCK## sentinel
+MOBILITY="${MOBILITY:-false}"
+case "${MOBILITY}" in
+    true)
+        printf 'mobility' > /tmp/mobility_block.txt
+        echo "[entrypoint] MOBILITY=enabled (RFC 8016)"
+        ;;
+    false)
+        : > /tmp/mobility_block.txt
+        ;;
+    *)
+        echo "[entrypoint] ERROR: Unknown MOBILITY='${MOBILITY}'. Valid values: true, false" >&2
+        exit 1
+        ;;
+esac
+
+sed -e '/^##MOBILITY_BLOCK##$/{' -e 'r /tmp/mobility_block.txt' -e 'd' -e '}' \
+    "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
+
+# Step 5: verify certificate files exist
 CERT_FILE="${CERT_DIR}/fullchain.pem"
 PKEY_FILE="${CERT_DIR}/privkey.pem"
 
@@ -67,6 +111,6 @@ done
 
 echo "[entrypoint] CERT_DIR=${CERT_DIR} | REALM=${REALM} | RELAY=${MIN_PORT}-${MAX_PORT} | EXTERNAL_IP=${EXTERNAL_IP}"
 
-# Step 4: start turnserver as PID 1
+# Step 6: start turnserver as PID 1
 # --log-file stdout sends output to Docker log driver (docker logs)
 exec turnserver -c "${CONF}" --log-file stdout
