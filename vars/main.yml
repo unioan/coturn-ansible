@@ -1,0 +1,47 @@
+# ================================================================
+# PRIMARY SETTINGS — edit these, everything else derives from them
+# ================================================================
+
+# Public IP of the server
+server_ip: "188.137.229.86"
+
+# Domain name for TLS certificate and TURN realm
+domain: "webrtc.valdi.sarl"
+
+# ================================================================
+# Derived values — no need to change these normally
+# ================================================================
+
+# ---- Network ----
+external_ip: "{{ server_ip }}"
+relay_ip: "{{ server_ip }}"
+listening_ip: "0.0.0.0"
+
+# ---- Certificate source ----
+# certbot — install certbot and obtain certificate automatically (port 80 must be free)
+# manual  — certificate already exists, specify the directory path below
+cert_source: "certbot"
+
+# certbot settings (used when cert_source=certbot)
+certbot_domain: "{{ domain }}"
+certbot_email: "admin@{{ domain }}"
+letsencrypt_root: "/etc/letsencrypt"
+
+# manual settings (used when cert_source=manual)
+# Full path to the directory on the host containing fullchain.pem and privkey.pem
+manual_cert_dir: "/etc/ssl/certs/coturn"
+
+# ---- TURN settings ----
+realm: "{{ domain }}"
+turn_user: "freepbx"
+# password — long-term credentials (lt-cred-mech), рекомендуется для продакшена
+# noauth   — открытый релей без пароля, только для тестов в изолированной сети
+auth_mode: "noauth"
+
+# Relay port range — 300 ports ≈ 150 concurrent calls
+min_port: 49152
+max_port: 49452
+
+# ---- Deployment ----
+coturn_dir: "/opt/coturn"
+coturn_image: "coturn/coturn:4.6.3"

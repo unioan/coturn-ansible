@@ -1,0 +1,51 @@
+services:
+  coturn:
+    # Pin to a specific version - avoid 'latest' for production stability
+    image: coturn/coturn:4.6.3
+    restart: unless-stopped
+
+    # Host networking is recommended for coturn:
+    # - avoids Docker userspace NAT overhead for thousands of relay UDP ports
+    # - coturn sees real client IPs, required for permission checks
+    network_mode: host
+
+    # --- Alternative: bridge mode ---
+    # Comment out network_mode above and uncomment this block instead:
+    # ports:
+    #   - "${LISTENING_IP}:3478:3478/udp"
+    #   - "${LISTENING_IP}:3478:3478/tcp"
+    #   - "${LISTENING_IP}:5349:5349/tcp"
+    #   - "${LISTENING_IP}:5349:5349/udp"
+    #   - "${LISTENING_IP}:${MIN_PORT}-${MAX_PORT}:${MIN_PORT}-${MAX_PORT}/udp"
+
+    environment:
+      EXTERNAL_IP:    "${EXTERNAL_IP}"
+      RELAY_IP:       "${RELAY_IP}"
+      LISTENING_IP:   "${LISTENING_IP}"
+      CERT_DIR:       "${CERT_DIR}"
+      AUTH_MODE:      "${AUTH_MODE}"
+      TURN_USER:      "${TURN_USER}"
+      TURN_PASSWORD:  "${TURN_PASSWORD}"
+      REALM:          "${REALM}"
+      MIN_PORT:       "${MIN_PORT}"
+      MAX_PORT:       "${MAX_PORT}"
+
+    volumes:
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./coturn.conf.template:/etc/coturn/coturn.conf.template:ro
+      # Mount the letsencrypt root (not just live/) so that symlinks in live/<domain>/
+      # can resolve to ../../archive/<domain>/ inside the container
+      - "${LETSENCRYPT_LIVE_DIR}:/etc/coturn/certs:ro"
+
+    # Run as root to access letsencrypt live/ and archive/ directories (drwx------ root)
+    user: root
+
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+
+    # Health check via STUN binding request on the plain port
+    healthcheck:
+      test: ["CMD-SHELL", "turnutils_stunclient 127.0.0.1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

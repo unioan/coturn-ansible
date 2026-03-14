@@ -1,0 +1,226 @@
+---
+- name: Deploy coturn TURN server
+  hosts: turn_servers
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/main.yml
+    - vars/secrets.yml
+
+  tasks:
+
+    # ------------------------------------------------------------------ #
+    # 0. System update
+    # ------------------------------------------------------------------ #
+
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: true
+        upgrade: dist
+        autoremove: true
+
+    # ------------------------------------------------------------------ #
+    # 1. Docker
+    # ------------------------------------------------------------------ #
+
+    - name: Check if Docker is installed
+      command: docker info
+      register: docker_info
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install Docker prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: true
+      when: docker_info.rc != 0
+
+    - name: Add Docker GPG key
+      shell: |
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+          -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+      args:
+        creates: /etc/apt/keyrings/docker.asc
+      when: docker_info.rc != 0
+
+    - name: Add Docker apt repository
+      shell: |
+        echo "deb [arch=$(dpkg --print-architecture) \
+          signed-by=/etc/apt/keyrings/docker.asc] \
+          https://download.docker.com/linux/ubuntu \
+          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+          > /etc/apt/sources.list.d/docker.list
+      args:
+        creates: /etc/apt/sources.list.d/docker.list
+      when: docker_info.rc != 0
+
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      when: docker_info.rc != 0
+
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    # ------------------------------------------------------------------ #
+    # 2. Certbot (only when cert_source == certbot)
+    # ------------------------------------------------------------------ #
+
+    - name: Install certbot
+      apt:
+        name: certbot
+        state: present
+        update_cache: true
+      when: cert_source == "certbot"
+
+    - name: Check if certificate already exists
+      stat:
+        path: "{{ letsencrypt_root }}/live/{{ certbot_domain }}/fullchain.pem"
+      register: cert_stat
+      when: cert_source == "certbot"
+
+    - name: Check that port 80 is free before certbot
+      shell: ss -tlnp | grep ':80 '
+      register: port80_check
+      ignore_errors: true
+      changed_when: false
+      when:
+        - cert_source == "certbot"
+        - not cert_stat.stat.exists
+
+    - name: Fail if port 80 is in use
+      fail:
+        msg: >
+          Port 80 is in use. Stop the service occupying it before running
+          certbot standalone, or switch to DNS challenge manually.
+      when:
+        - cert_source == "certbot"
+        - not cert_stat.stat.exists
+        - port80_check.rc == 0
+
+    - name: Obtain certificate with certbot standalone
+      command: >
+        certbot certonly --standalone
+        -d {{ certbot_domain }}
+        --email {{ certbot_email }}
+        --agree-tos
+        --non-interactive
+      when:
+        - cert_source == "certbot"
+        - not cert_stat.stat.exists
+
+    # ------------------------------------------------------------------ #
+    # 3. coturn directory and files
+    # ------------------------------------------------------------------ #
+
+    - name: Create coturn directory
+      file:
+        path: "{{ coturn_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy static files
+      copy:
+        src: "files/{{ item.src }}"
+        dest: "{{ coturn_dir }}/{{ item.dest }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: coturn.conf.template, dest: coturn.conf.template, mode: '0644' }
+        - { src: docker-compose.yml,   dest: docker-compose.yml,   mode: '0644' }
+        - { src: entrypoint.sh,        dest: entrypoint.sh,        mode: '0755' }
+
+    - name: Generate .env from template
+      template:
+        src: templates/env.j2
+        dest: "{{ coturn_dir }}/.env"
+        mode: '0600'
+
+    # ------------------------------------------------------------------ #
+    # 4. Firewall (ufw)
+    # ------------------------------------------------------------------ #
+
+    - name: Check ufw status
+      command: ufw status
+      register: ufw_status
+      ignore_errors: true
+      changed_when: false
+
+    - name: Allow STUN/TURN ports in ufw
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "coturn"
+      loop:
+        - { port: "3478",                           proto: "udp" }
+        - { port: "3478",                           proto: "tcp" }
+        - { port: "5349",                           proto: "tcp" }
+        - { port: "5349",                           proto: "udp" }
+        - { port: "{{ min_port }}:{{ max_port }}",  proto: "udp" }
+      when: "'active' in ufw_status.stdout"
+
+    # ------------------------------------------------------------------ #
+    # 5. Start coturn
+    # ------------------------------------------------------------------ #
+
+    - name: Pull coturn image
+      command: docker pull {{ coturn_image }}
+      changed_when: false
+
+    - name: Start coturn with docker compose
+      command: docker compose up -d
+      args:
+        chdir: "{{ coturn_dir }}"
+
+    # ------------------------------------------------------------------ #
+    # 6. Certificate renewal cron
+    # ------------------------------------------------------------------ #
+
+    - name: Setup cron for cert renewal and coturn restart
+      cron:
+        name: "coturn cert renewal"
+        minute: "0"
+        hour: "4"
+        job: >
+          certbot renew --quiet &&
+          docker compose -f {{ coturn_dir }}/docker-compose.yml restart coturn
+      when: cert_source == "certbot"
+
+    # ------------------------------------------------------------------ #
+    # 7. Verify
+    # ------------------------------------------------------------------ #
+
+    - name: Wait for coturn to start
+      wait_for:
+        port: 3478
+        host: 127.0.0.1
+        delay: 3
+        timeout: 30
+
+    - name: Show coturn status
+      command: docker compose ps
+      args:
+        chdir: "{{ coturn_dir }}"
+      register: compose_status
+      changed_when: false
+
+    - name: Print coturn status
+      debug:
+        msg: "{{ compose_status.stdout_lines }}"
