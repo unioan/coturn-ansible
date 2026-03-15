@@ -127,7 +127,7 @@ ansible-playbook -i inventory.ini deploy.yml
 
 ## Verification after Deployment
 
-Test the TURN/STUN server using [https://trickle-ice.com](https://trickle-ice.com):
+Test the TURN/STUN server using [Trickle ICE](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/):
 
 1. Enter the TURN URI: `turn:YOUR_DOMAIN:3478?transport=udp`
 2. Enter TURN username and password from `vars/users.yml`
@@ -157,7 +157,7 @@ Connect to the coturn admin interface from the server:
 nc 127.0.0.1 5766
 ```
 
-Enter the CLI password from `vars/secrets.yml` when prompted.
+Enter `cli_password` from `vars/secrets.yml` when prompted.
 
 Available commands:
 
