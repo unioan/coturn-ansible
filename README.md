@@ -87,7 +87,21 @@ manual_cert_subdir: "YOUR_DOMAIN"
 - `password` — long-term credentials, recommended for production
 - `noauth` — open relay without credentials, for testing only
 
-### 3. Add TURN users
+### 3. Optional Settings
+
+All optional settings are in `vars/main.yml`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `min_port` | `49152` | Relay port range start. Each port = 1 concurrent TURN allocation |
+| `max_port` | `49452` | Relay port range end. Total ports must be ≥ `total_quota` |
+| `total_quota` | `100` | Max simultaneous TURN allocations across all users |
+| `user_quota` | `20` | Max simultaneous TURN allocations per user |
+| `max_bps` | `0` | Max bandwidth per allocation in bits/s. `0` = unlimited. Example: `1048576` = 1 Mbit/s |
+| `mobility` | `false` | Allow clients to change IP mid-call (e.g. WiFi → 4G). `true` / `false` |
+| `log_level` | `verbose` | Logging verbosity: `normal`, `verbose`, `Verbose` |
+
+### 4. Add TURN Users
 
 Edit `vars/users.yml`:
 
@@ -97,7 +111,7 @@ turn_users:
     password: "StrongPassword1!"
 ```
 
-### 4. Set the CLI password
+### 5. Set the CLI Password
 
 Edit `vars/secrets.yml`:
 
@@ -105,7 +119,7 @@ Edit `vars/secrets.yml`:
 cli_password: "StrongCliPassword!"
 ```
 
-### 5. Run the deployment
+### 6. Run the Deployment
 
 ```sh
 ansible-playbook -i inventory.ini deploy.yml
