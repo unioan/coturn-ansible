@@ -20,22 +20,20 @@ listening_ip: "0.0.0.0"
 # ---- Certificate source ----
 # certbot — install certbot and obtain certificate automatically (port 80 must be free)
 # manual  — certificate already exists, specify the directory path below
-cert_source: "certbot"
+cert_source: "manual"
+# manual_cert_dir must contain actual files (not symlinks) named fullchain.pem and privkey.pem
+manual_cert_dir: "/var/letsencrypt/webrtc.valdi.sarl"
 
 # certbot settings (used when cert_source=certbot)
 certbot_domain: "{{ domain }}"
 certbot_email: "admin@{{ domain }}"
 letsencrypt_root: "/etc/letsencrypt"
 
-# manual settings (used when cert_source=manual)
-# Full path to the directory on the host containing fullchain.pem and privkey.pem
-manual_cert_dir: "/etc/ssl/certs/coturn"
-
 # ---- TURN settings ----
 realm: "{{ domain }}"
 # password — long-term credentials (lt-cred-mech), рекомендуется для продакшена
 # noauth   — открытый релей без пароля, только для тестов в изолированной сети
-auth_mode: "noauth"
+auth_mode: "password"
 
 # Relay port range — each port = 1 concurrent TURN allocation (1 call)
 min_port: 49152

@@ -4,10 +4,15 @@
 # Каждый пользователь может использовать TURN с указанными credentials.
 # После изменений запустите playbook для применения.
 #
-# Формат:
-#   - username: "имя"
-#     password: "пароль"
+# Пример:
+# turn_users:
+#   - username: "user_1"
+#     password: "Pass1"
+#   - username: "user_2"
+#     password: "AnotherPass!"
 
 turn_users:
   - username: "freepbx"
     password: "ChangeMe_S3cur3!"
+  - username: "jojo"
+    password: "AnotherPass!"
