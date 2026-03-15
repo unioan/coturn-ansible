@@ -20,9 +20,14 @@ listening_ip: "0.0.0.0"
 # ---- Certificate source ----
 # certbot — install certbot and obtain certificate automatically (port 80 must be free)
 # manual  — certificate already exists, specify the directory path below
-cert_source: "manual"
-# manual_cert_dir must contain actual files (not symlinks) named fullchain.pem and privkey.pem
-manual_cert_dir: "/var/letsencrypt/webrtc.valdi.sarl"
+cert_source: "certbot"
+# manual_cert_root   — root directory mounted into container
+# manual_cert_subdir — subdirectory inside root containing the certificate files
+# Works with Let's Encrypt and purchased certificates.
+# For purchased certificates: files must be named fullchain.pem and privkey.pem
+# Symlinks are allowed if their targets are also inside manual_cert_root
+manual_cert_root: "/var/letsencrypt"
+manual_cert_subdir: "webrtc.valdi.sarl"
 
 # certbot settings (used when cert_source=certbot)
 certbot_domain: "{{ domain }}"
