@@ -1,6 +1,6 @@
 # coturn-ansible
 
-Ansible playbook for automated deployment of a coturn TURN/STUN server on any Ubuntu machine using Docker Compose.
+Ansible playbook for automated deployment of a coturn TURN/STUN server on Ubuntu 22.04 and 24.04 using Docker Compose.
 
 ## Table of Contents
 

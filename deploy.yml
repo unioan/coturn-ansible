@@ -20,6 +20,8 @@
         update_cache: true
         upgrade: dist
         autoremove: true
+      async: 900
+      poll: 10
 
     # ------------------------------------------------------------------ #
     # 1. Docker
