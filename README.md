@@ -1,185 +1,167 @@
-# coturn TURN Server — Ansible Deploy
+# coturn-ansible
 
-Ansible-плейбук для автоматического развёртывания coturn TURN/STUN сервера
-на любую Ubuntu-машину.
+Ansible playbook for automated deployment of a coturn TURN/STUN server on any Ubuntu machine using Docker Compose.
 
-## Структура
+## Table of Contents
+
+- [What the Playbook Does](#what-the-playbook-does)
+- [Project Structure](#project-structure)
+- [Quick Start](#quick-start)
+- [Server URLs](#server-urls)
+- [Verification after Deployment](#verification-after-deployment)
+- [Useful Commands](#useful-commands)
+- [Admin CLI](#admin-cli)
+
+---
+
+## What the Playbook Does
+
+1. **Docker** — checks if Docker is installed, installs it from the official repository if not
+2. **Certbot** — installs certbot and obtains a certificate via `--standalone` (only when `cert_source: certbot`, port 80 must be free)
+3. **Files** — creates `/opt/coturn/`, copies configuration files, generates `.env` with mode `0600`
+4. **Firewall** — opens ports in ufw: `80` TCP (certbot only), `3478` UDP/TCP, `5349` TCP/UDP, relay port range UDP (only when ufw is active)
+5. **Start** — runs `docker compose up -d`
+6. **Cron** — sets up certificate renewal with a deploy-hook that restarts coturn only when the certificate is actually renewed
+
+---
+
+## Project Structure
 
 ```
 ansible/
-├── deploy.yml              — главный плейбук
-├── inventory.ini           — список серверов
+├── deploy.yml               — main playbook
+├── inventory.ini            — server list
 ├── vars/
-│   ├── main.yml            — все настройки (IP, домен, порты)
-│   └── secrets.yml         — пароль TURN (шифровать ansible-vault)
+│   ├── main.yml             — all settings (IP, domain, ports, auth, logging)
+│   ├── secrets.yml          — CLI password
+│   └── users.yml            — TURN users and passwords
 ├── templates/
-│   └── env.j2              — шаблон .env для coturn
+│   └── env.j2               — .env template for coturn container
 └── files/
-    ├── coturn.conf.template
-    ├── docker-compose.yml
-    └── entrypoint.sh
+    ├── coturn.conf.template — coturn configuration template
+    ├── docker-compose.yml   — Docker Compose service definition
+    └── entrypoint.sh        — container entrypoint script
 ```
 
 ---
 
-## Быстрый старт
+## Quick Start
 
-### 1. Указать сервер
+### 1. Set the target server
 
-Отредактировать `inventory.ini`:
+Edit `inventory.ini`:
+
 ```ini
 [turn_servers]
-turn1 ansible_host=<IP сервера> ansible_user=root
+turn1 ansible_host=YOUR_SERVER_IP ansible_user=root ansible_ssh_private_key_file=~/.ssh/your_key
 ```
 
-### 2. Настроить параметры
+### 2. Configure settings
 
-Отредактировать `vars/main.yml`. Для нового сервера достаточно изменить **два параметра** в начале файла — всё остальное выводится из них автоматически:
+Edit `vars/main.yml`. Only two parameters at the top need to be changed — everything else is derived automatically:
 
 ```yaml
-server_ip: "185.219.83.158"   # публичный IP сервера
-domain: "ice.valdi.sarl"      # домен для сертификата и TURN realm
+server_ip: "YOUR_SERVER_IP"
+domain: "YOUR_DOMAIN"
 ```
 
-Производные значения (не требуют изменений в обычном случае):
+**Certificate source** (`cert_source`):
 
-| Параметр | Выводится из | Описание |
-|---|---|---|
-| `external_ip` | `server_ip` | IP для STUN mapped-address |
-| `relay_ip` | `server_ip` | IP для relay-сокетов |
-| `realm` | `domain` | TURN realm |
-| `certbot_domain` | `domain` | Домен для сертификата |
-| `certbot_email` | `domain` | Email для Let's Encrypt |
-| `cert_domain_folder` | `domain` | Папка внутри `letsencrypt/live/` |
+- `certbot` — automatically obtain a Let's Encrypt certificate (port 80 must be free)
+- `manual` — use an existing certificate (Let's Encrypt or purchased)
 
-Остальные параметры:
-
-| Параметр | Описание |
-|---|---|
-| `cert_source` | `certbot` или `manual` |
-| `manual_cert_dir` | Путь к директории с сертификатом (только для `manual`) |
-| `turn_user` | Имя пользователя TURN |
-| `auth_mode` | `password` или `noauth` |
-| `min_port` / `max_port` | Диапазон relay-портов UDP |
-
-### 3. Зашифровать пароль
-
-```sh
-ansible-vault encrypt vars/secrets.yml
-```
-
-Перед шифрованием установить `turn_password` в `vars/secrets.yml`.
-
-### 4. Запустить деплой
-
-```sh
-ansible-playbook -i inventory.ini deploy.yml --ask-vault-pass
-```
-
----
-
-## Что делает плейбук
-
-1. **Docker** — проверяет наличие, устанавливает из официального репозитория если нет
-2. **certbot** — устанавливает и получает сертификат `--standalone` (если `cert_source=certbot`)
-3. **Файлы** — создаёт `/opt/coturn/`, копирует файлы, генерирует `.env` (mode 0600)
-4. **Firewall** — открывает порты в ufw (3478 UDP/TCP, 5349 TCP/UDP, relay range UDP)
-5. **Запуск** — `docker compose up -d`
-6. **Cron** — ежедневное обновление сертификата и перезапуск coturn в 04:00
-
----
-
-## Источник сертификата
-
-### certbot (по умолчанию)
-
-Плейбук устанавливает certbot и получает сертификат автоматически.
-Порт 80 должен быть свободен во время первого запуска.
-
-```yaml
-cert_source: "certbot"
-# domain и server_ip уже заданы выше — certbot использует их автоматически
-```
-
-Внутри контейнера сертификат доступен по пути:
-```
-/etc/coturn/certs/live/<domain>/fullchain.pem
-```
-
-### manual
-
-Сертификат уже есть на сервере. Укажите полный путь к директории
-с `fullchain.pem` и `privkey.pem`:
+For `manual` mode, set the root directory and subdirectory containing `fullchain.pem` and `privkey.pem`:
 
 ```yaml
 cert_source: "manual"
-manual_cert_dir: "/etc/ssl/certs/mycert"
+manual_cert_root: "/path/to/certs/root"
+manual_cert_subdir: "YOUR_DOMAIN"
 ```
 
-Плейбук смонтирует эту директорию напрямую как `/etc/coturn/certs`.
-Путь внутри контейнера: `/etc/coturn/certs/fullchain.pem`.
+> Works with Let's Encrypt and purchased certificates.
+> For purchased certificates: files must be named `fullchain.pem` and `privkey.pem`.
+> Symlinks are allowed if their targets are also inside `manual_cert_root`.
 
-> Если сертификат от nginx-proxy-manager, укажите полный путь до папки
-> с симлинками, и дополнительно смонтируйте `archive/` — или скопируйте
-> реальные файлы в отдельную директорию:
-> ```sh
-> cp /opt/nginx-proxy-manager/letsencrypt/archive/npm-29/fullchain1.pem \
->    /etc/ssl/coturn/fullchain.pem
-> cp /opt/nginx-proxy-manager/letsencrypt/archive/npm-29/privkey1.pem \
->    /etc/ssl/coturn/privkey.pem
-> ```
+**Authentication mode** (`auth_mode`):
 
----
+- `password` — long-term credentials, recommended for production
+- `noauth` — open relay without credentials, for testing only
 
-## Переключение режима аутентификации
+### 3. Add TURN users
 
-Изменить в `vars/main.yml`:
+Edit `vars/users.yml`:
+
 ```yaml
-auth_mode: "password"   # или noauth
+turn_users:
+  - username: "user1"
+    password: "StrongPassword1!"
 ```
 
-Применить без полного деплоя:
-```sh
-ansible-playbook -i inventory.ini deploy.yml --ask-vault-pass --tags config
+### 4. Set the CLI password
+
+Edit `vars/secrets.yml`:
+
+```yaml
+cli_password: "StrongCliPassword!"
 ```
 
-> Пересборка образа не нужна — только перезапуск контейнера.
-
----
-
-## Полезные команды
+### 5. Run the deployment
 
 ```sh
-# Деплой
-ansible-playbook -i inventory.ini deploy.yml --ask-vault-pass
-
-# Проверка без применения
-ansible-playbook -i inventory.ini deploy.yml --check --ask-vault-pass
-
-# Только обновить конфиг
-ansible-playbook -i inventory.ini deploy.yml --ask-vault-pass --tags config
-
-# Редактировать зашифрованный файл паролей
-ansible-vault edit vars/secrets.yml
-
-# Проверить доступность сервера
-ansible -i inventory.ini turn_servers -m ping
+ansible-playbook -i inventory.ini deploy.yml
 ```
 
 ---
 
-## Проверка после деплоя
+## Server URLs
+
+| Protocol | URL | Description |
+|---|---|---|
+| STUN | `stun:YOUR_DOMAIN:3478` | STUN only, no credentials required |
+| TURN | `turn:YOUR_DOMAIN:3478` | TURN over UDP, fallback to TCP automatically |
+| TURN UDP | `turn:YOUR_DOMAIN:3478?transport=udp` | TURN over UDP (explicit) |
+| TURN TCP | `turn:YOUR_DOMAIN:3478?transport=tcp` | TURN over TCP (explicit) |
+| TURNS TLS | `turns:YOUR_DOMAIN:5349` | TURN over TLS (encrypted) |
+
+---
+
+## Verification after Deployment
+
+Test the TURN/STUN server using [https://trickle-ice.com](https://trickle-ice.com):
+
+1. Enter the TURN URI: `turn:YOUR_DOMAIN:3478?transport=udp`
+2. Enter TURN username and password from `vars/users.yml`
+3. Click **Gather candidates**
+
+If `relay` candidates appear — TURN is working correctly.
+
+---
+
+## Useful Commands
 
 ```sh
-# Логи coturn
-ssh root@<IP> "docker compose -f /opt/coturn/docker-compose.yml logs coturn"
+# View coturn logs
+docker logs -f coturn-coturn-1
 
-# Тест STUN с локальной машины
-python3 ../stun_test.py
+# Redeploy with Ansible
+ansible-playbook -i inventory.ini deploy.yml
 ```
 
-Ожидаемый результат `stun_test.py`:
+---
+
+## Admin CLI
+
+Connect to the coturn admin interface from the server:
+
+```sh
+nc 127.0.0.1 5766
 ```
-Response from: ('<IP сервера>', 3478)
-STUN OK
-```
+
+Enter the CLI password from `vars/secrets.yml` when prompted.
+
+Available commands:
+
+| Command | Description |
+|---|---|
+| `ps <username>` | Show active sessions for a user |
+| `pc` | Print current configuration and allocation stats |
