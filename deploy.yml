@@ -177,6 +177,16 @@
         - { port: "{{ min_port }}:{{ max_port }}",  proto: "udp" }
       when: "ufw_status.stdout is search('Status: active$')"
 
+    - name: Allow port 80 in ufw for certbot
+      ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+        comment: "certbot"
+      when:
+        - "ufw_status.stdout is search('Status: active$')"
+        - cert_source == "certbot"
+
     # ------------------------------------------------------------------ #
     # 5. Start coturn
     # ------------------------------------------------------------------ #

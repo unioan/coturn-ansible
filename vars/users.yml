@@ -12,7 +12,5 @@
 #     password: "AnotherPass!"
 
 turn_users:
-  - username: "freepbx"
-    password: "ChangeMe_S3cur3!"
-  - username: "jojo"
-    password: "AnotherPass!"
+  - username: "user1"
+    password: "StrongPassword1!"

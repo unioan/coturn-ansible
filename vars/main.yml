@@ -3,10 +3,10 @@
 # ================================================================
 
 # Public IP of the server
-server_ip: "188.137.229.86"
+server_ip: "YOUR_SERVER_IP"
 
 # Domain name for TLS certificate and TURN realm
-domain: "webrtc.valdi.sarl"
+domain: "YOUR_DOMAIN"
 
 # ================================================================
 # Derived values — no need to change these normally
@@ -26,8 +26,8 @@ cert_source: "certbot"
 # Works with Let's Encrypt and purchased certificates.
 # For purchased certificates: files must be named fullchain.pem and privkey.pem
 # Symlinks are allowed if their targets are also inside manual_cert_root
-manual_cert_root: "/var/letsencrypt"
-manual_cert_subdir: "webrtc.valdi.sarl"
+manual_cert_root: "/path/to/certs/root"
+manual_cert_subdir: "YOUR_DOMAIN"
 
 # certbot settings (used when cert_source=certbot)
 certbot_domain: "{{ domain }}"
